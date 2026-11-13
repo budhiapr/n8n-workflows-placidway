@@ -12,6 +12,17 @@ Facebook page.
 
 ---
 
+## Submission
+
+| Item | Link / location |
+|---|---|
+| Public repository | https://github.com/budhiapr/n8n-workflows-placidway |
+| Exported workflow | [`workflows/placidway-daily-post.json`](workflows/placidway-daily-post.json) (+ `setup-tables`, `error-handler`, `approve-post`) |
+| Sample posts | [`samples/sample-posts.json`](samples/sample-posts.json) — 6 posts, source URLs included |
+| Screen recording | [`n8n-automation-budhi-apriyanto.mp4`](n8n-automation-budhi-apriyanto.mp4) |
+
+---
+
 ## Table of contents
 
 1. [Architecture](#architecture)
@@ -31,8 +42,6 @@ Facebook page.
 ---
 
 ## Architecture
-
-![The PlacidWay Daily Social Post workflow in the n8n canvas](docs/workflow-canvas.png)
 
 ```
 ┌─ Schedule (cron 0 9 * * *, Asia/Jakarta) ─┐
@@ -118,7 +127,7 @@ Wait 3s → Fetch articles sitemap     Wait 3s → Fetch packages sitemap   … 
 
 | Decision | Rationale |
 |---|---|
-| **Sitemap-first discovery** | One cheap request lists thousands of URLs with `lastmod`. No DOM scraping for discovery, trivially rate-limited. Validated by spike (see `docs/PRD.md` §4). |
+| **Sitemap-first discovery** | One cheap request lists thousands of URLs with `lastmod`. No DOM scraping for discovery, trivially rate-limited. Validated by spike. |
 | **Sequential fetches with Wait nodes** | `Crawl-delay: 3` from `robots.txt` is honoured literally. A `SplitInBatches` loop would make the delay harder to prove in a walkthrough. |
 | **Only the selected page is fetched** | 1 request per run instead of thousands. |
 | **Data Tables, not Google Sheets** | Native to n8n, no extra OAuth, visible in the UI during the demo. |
@@ -136,8 +145,6 @@ Wait 3s → Fetch articles sitemap     Wait 3s → Fetch packages sitemap   … 
 ├── docker-compose.yml          # n8n service (pinned 2.47.3)
 ├── .env.example                # env template
 ├── .env                        # local values (gitignored)
-├── docs/
-│   └── PRD.md                  # the brief, plus spike findings and decisions
 ├── workflows/                  # the deliverable: importable n8n JSON
 │   ├── placidway-daily-post.json   # main pipeline (56 nodes)
 │   ├── setup-tables.json           # run once: creates the 3 data tables
@@ -328,8 +335,6 @@ is retryable, so a bad run can never cause a silent double-post.
 
 ### `published_posts` — the simulated publisher
 
-![The published_posts data table with two real workflow runs](docs/published-posts.png)
-
 `post_id` (`sim_<timestamp>`), `url`, `title`, `content_type`, `post_text`,
 `image_url`, `status`, `guardrail_result`, `publisher_mode`, `created_at`.
 
@@ -452,19 +457,16 @@ https://www.placidway.com/profile/326534/Wolistic-Center
 ## Walkthrough scripts
 
 Two full narration scripts (shot list, timing, word-for-word narration, visual
-checklist) are ready to record:
-
-- **Bahasa Indonesia** — [`docs/walkthrough-id.md`](docs/walkthrough-id.md)
-- **English** — [`docs/walkthrough-en.md`](docs/walkthrough-en.md)
-
-Both run about 8–9 minutes and follow the same structure: intro → architecture →
-configuration → data tables → live run → results → dedupe → wrap-up.
+checklist) were used to record the demo — one in Bahasa Indonesia, one in
+English. Both run about 8–9 minutes and follow the same structure:
+intro → architecture → configuration → data tables → live run → results →
+dedupe → wrap-up.
 
 ---
 
 ## Deliverables checklist
 
-Mapped against `docs/AI Automation Candidate Assessment.pdf`:
+Mapped against the AI Automation Candidate Assessment:
 
 | # | Requirement | Where |
 |---|---|---|
