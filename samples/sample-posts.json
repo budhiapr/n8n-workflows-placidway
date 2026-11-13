@@ -1,0 +1,100 @@
+[
+  {
+    "sample_id": "sample-1",
+    "source_url": "https://www.placidway.com/article/5693/Gastric-Sleeve-Surgery-from-Toronto-to-Tijuana-Mexico-A-Path-to-Lasting-Weight-Loss",
+    "content_type": "article",
+    "title": "Gastric Sleeve in Tijuana, Mexico: Five Claims Worth Checking",
+    "post_text": "Gastric Sleeve in Tijuana: What the Price Lists Do Not Say\n- An approximate Tijuana self-pay range is $4,000-$6,500.\n- A broad United States cash-pay range is $15,000-$25,000.\n- The article sets out five claims worth checking before you book.\nRead the full breakdown:\nhttps://www.placidway.com/article/5693/Gastric-Sleeve-Surgery-from-Toronto-to-Tijuana-Mexico-A-Path-to-Lasting-Weight-Loss\n#MedicalTourism #GastricSleeve #Tijuana #Mexico",
+    "hashtags": [
+      "#MedicalTourism",
+      "#GastricSleeve",
+      "#Tijuana",
+      "#Mexico"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review"
+  },
+  {
+    "sample_id": "sample-2",
+    "source_url": "https://www.placidway.com/article/5677/Affordable-Rhinoplasty-in-Istanbul-A-Guide-for-London-Patients",
+    "content_type": "article",
+    "title": "Rhinoplasty in Istanbul, Turkey: A Month-by-Month Calendar for UK Patients",
+    "post_text": "Rhinoplasty in Istanbul: A Month-by-Month Calendar for UK Patients\n- An estimated self-pay price in Istanbul is approximately $3,000-$7,500.\n- A comparable private procedure in the UK is estimated at $6,500-$13,000.\n- The guide maps leave, holidays and follow-up appointments month by month.\nSee the full calendar:\nhttps://www.placidway.com/article/5677/Affordable-Rhinoplasty-in-Istanbul-A-Guide-for-London-Patients\n#MedicalTourism #Rhinoplasty #Istanbul #Turkey",
+    "hashtags": [
+      "#MedicalTourism",
+      "#Rhinoplasty",
+      "#Istanbul",
+      "#Turkey"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review"
+  },
+  {
+    "sample_id": "sample-3",
+    "source_url": "https://www.placidway.com/article/5527/Affordable-Hair-Transplant-in-Turkey-UK-Patients-Cost-Travel-Guide",
+    "content_type": "article",
+    "title": "Hair Transplant in Turkey for UK Patients | Cost Guide",
+    "post_text": "Hair Transplant in Turkey: How UK Patients Compare the Costs\n- Approximate Istanbul FUE or package prices run from $1,500-$5,000.\n- A UK private FUE or FUT baseline is approximately $3,800-$15,000.\n- The guide explains what a package quote may leave open.\nRead the cost guide:\nhttps://www.placidway.com/article/5527/Affordable-Hair-Transplant-in-Turkey-UK-Patients-Cost-Travel-Guide\n#MedicalTourism #HairTransplant #Turkey #Istanbul",
+    "hashtags": [
+      "#MedicalTourism",
+      "#HairTransplant",
+      "#Turkey",
+      "#Istanbul"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review"
+  },
+  {
+    "sample_id": "sample-4",
+    "source_url": "https://www.placidway.com/profile/326534/Wolistic-Center",
+    "content_type": "profile",
+    "title": "Wolistic Center | Aesthetic & Wellness Clinic in Istanbul",
+    "post_text": "Find aesthetic and wellness services in Istanbul\n- Plastic surgery and medical aesthetics available\n- Women's health and nutrition services offered\n- Psychology consultations provided\n- Published June 4, 2026, updated November 10, 2026\nRead more:\nhttps://www.placidway.com/profile/326534/Wolistic-Center\n#MedicalTourism #AestheticClinic #Istanbul #WellnessCenter",
+    "hashtags": [
+      "#MedicalTourism",
+      "#AestheticClinic",
+      "#Istanbul",
+      "#WellnessCenter"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review",
+    "produced_by": "live workflow run (real LLM)"
+  },
+  {
+    "sample_id": "sample-5",
+    "source_url": "https://www.placidway.com/profile/325417/Dentaray-Clinic-Dental-Clinic-in-Istanbul",
+    "content_type": "profile",
+    "title": "Dentaray Clinic | Premier Dental Clinic in Istanbul",
+    "post_text": "Luxury dental care in Istanbul with expert smile restoration.\n- Specializes in Hollywood Smile, dental implants, veneers.\n- Located in Istanbul, Turkey.\n- Book a virtual consultation with Dentaray Clinic.\nRead more:\nhttps://www.placidway.com/profile/325417/Dentaray-Clinic-Dental-Clinic-in-Istanbul\n#MedicalTourism #DentalImplants #Istanbul #SmileRestoration",
+    "hashtags": [
+      "#MedicalTourism",
+      "#DentalImplants",
+      "#Istanbul",
+      "#SmileRestoration"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review",
+    "produced_by": "live workflow run (real LLM)"
+  },
+  {
+    "sample_id": "sample-6",
+    "source_url": "https://www.placidway.com/profile/327036/Buchodenti",
+    "content_type": "profile",
+    "title": "BuchoDenti Tbilisi | Dental Implants and Restorations",
+    "post_text": "BuchoDenti in Tbilisi offers dental implants and restorations.\n- Located in Tbilisi, Georgia\n- Specializes in dental implants and restorations\n- Book a virtual consultation available\nRead more:\nhttps://www.placidway.com/profile/327036/Buchodenti\n#MedicalTourism #DentalImplants #Georgia",
+    "hashtags": [
+      "#MedicalTourism",
+      "#DentalImplants",
+      "#Georgia"
+    ],
+    "guardrail_result": "PASS",
+    "publisher_mode": "simulate",
+    "status": "pending_review",
+    "produced_by": "live workflow run 2026-11-13 (real LLM)"
+  }
+]

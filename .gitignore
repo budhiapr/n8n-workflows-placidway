@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+*.log
+n8n_data/
+.DS_Store
+.playwright-mcp/
+__pycache__/
+docs/
+submission/
+.playwright-mcp/

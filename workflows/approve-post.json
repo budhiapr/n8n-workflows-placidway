@@ -1,0 +1,203 @@
+{
+  "id": "riNR0ZwcV28SBkI9",
+  "name": "PlacidWay - Approve / Reject Post",
+  "description": null,
+  "nodes": [
+    {
+      "id": "fef96bcc-9dda-5043-a571-065e545c846d",
+      "name": "Approve Post",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {},
+      "notes": "Approve (or reject) a pending_review post",
+      "notesInFlow": true,
+      "color": "#5b8ff9"
+    },
+    {
+      "id": "f012610c-33b6-5588-9365-141f467a31e7",
+      "name": "Approval decision",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ap-1",
+              "name": "url",
+              "value": "={{ $json.url || 'https://www.placidway.com/article/...' }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-2",
+              "name": "decision",
+              "value": "approved",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "notes": "Set url + 'approved' (or 'rejected')",
+      "notesInFlow": true,
+      "color": "#5b8ff9"
+    },
+    {
+      "id": "acf3d77b-0906-5a62-92ba-f03121887bc7",
+      "name": "Update posted_urls",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "condition": "eq",
+              "keyValue": "={{ $json.url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.decision === 'approved' ? 'published' : 'quarantined' }}",
+            "updated_at": "={{ $now.toISO() }}"
+          }
+        }
+      },
+      "notes": "pending_review -> published | quarantined",
+      "notesInFlow": true,
+      "color": "#a855f7"
+    },
+    {
+      "id": "79694976-c130-5716-918c-912eae285456",
+      "name": "Update published_posts",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "mode": "name",
+          "value": "published_posts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "condition": "eq",
+              "keyValue": "={{ $json.url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.decision === 'approved' ? 'published' : 'quarantined' }}"
+          }
+        }
+      },
+      "notes": "Flip the post record to match",
+      "notesInFlow": true,
+      "color": "#a855f7"
+    }
+  ],
+  "connections": {
+    "Approve Post": {
+      "main": [
+        [
+          {
+            "node": "Approval decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval decision": {
+      "main": [
+        [
+          {
+            "node": "Update posted_urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update posted_urls": {
+      "main": [
+        [
+          {
+            "node": "Update published_posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "activeVersionId": null,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": null,
+  "scopes": [
+    "execution:delete",
+    "execution:list",
+    "execution:read",
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "checksum": "6496c1cbfb624bd738ac26b3ac0d0a243e6580fdf0134228e8faa973f09043e9"
+}

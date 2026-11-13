@@ -1,0 +1,41 @@
+services:
+  n8n:
+    image: n8nio/n8n:2.47.3
+    container_name: placidway-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # --- n8n core ---
+      - N8N_TZ=Asia/Jakarta
+      - GENERIC_TIMEZONE=Asia/Jakarta
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_LOG_LEVEL=info
+      # The workflow reads its tunables from $env, so allow env access in nodes.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Local demo: allow the auth cookie over plain HTTP (e.g. LAN IP access).
+      # Set to "true" if you serve n8n behind HTTPS.
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      # --- app config ---
+      - SCHEDULE_CRON=${SCHEDULE_CRON:-0 9 * * *}
+      - CRAWL_DELAY=${CRAWL_DELAY:-3}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AUTO_PUBLISH=${AUTO_PUBLISH:-false}
+      - PUBLISHER_MODE=${PUBLISHER_MODE:-simulate}
+      - ALERT_CHANNEL=${ALERT_CHANNEL:-}
+      - REVIEWER_NOTIFY=${REVIEWER_NOTIFY:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  n8n_data:

@@ -1,0 +1,280 @@
+{
+  "id": "Ia3iocvcXJgW3S08",
+  "name": "PlacidWay - Setup Tables",
+  "description": null,
+  "nodes": [
+    {
+      "id": "15df3b6a-4301-5be1-b5f5-bfdb69a0c96c",
+      "name": "Manual Setup",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {},
+      "notes": "Run once to create the 3 data tables",
+      "notesInFlow": true,
+      "color": "#5b8ff9"
+    },
+    {
+      "id": "74c3a8c5-7b04-5fbe-b3af-ca4f26c8176c",
+      "name": "Create posted_urls",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "tableName": "posted_urls",
+        "columns": {
+          "column": [
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "content_type",
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "type": "string"
+            },
+            {
+              "name": "updated_at",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "notes": "posted_urls: 5 columns",
+      "notesInFlow": true,
+      "color": "#a855f7"
+    },
+    {
+      "id": "d9cbdfd1-7e7c-5771-bd9b-599910b41990",
+      "name": "Create published_posts",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "dataTableId": {
+          "mode": "name",
+          "value": "published_posts"
+        },
+        "tableName": "published_posts",
+        "columns": {
+          "column": [
+            {
+              "name": "post_id",
+              "type": "string"
+            },
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "title",
+              "type": "string"
+            },
+            {
+              "name": "content_type",
+              "type": "string"
+            },
+            {
+              "name": "post_text",
+              "type": "string"
+            },
+            {
+              "name": "image_url",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "guardrail_result",
+              "type": "string"
+            },
+            {
+              "name": "publisher_mode",
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "notes": "published_posts: 10 columns",
+      "notesInFlow": true,
+      "color": "#a855f7"
+    },
+    {
+      "id": "6858d80a-d159-55ad-95b8-09e773539472",
+      "name": "Create run_logs",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "dataTableId": {
+          "mode": "name",
+          "value": "run_logs"
+        },
+        "tableName": "run_logs",
+        "columns": {
+          "column": [
+            {
+              "name": "run_id",
+              "type": "string"
+            },
+            {
+              "name": "timestamp",
+              "type": "string"
+            },
+            {
+              "name": "selected_url",
+              "type": "string"
+            },
+            {
+              "name": "content_type",
+              "type": "string"
+            },
+            {
+              "name": "post_text",
+              "type": "string"
+            },
+            {
+              "name": "guardrail_result",
+              "type": "string"
+            },
+            {
+              "name": "publisher_mode",
+              "type": "string"
+            },
+            {
+              "name": "post_id",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "error",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "notes": "run_logs: 10 columns",
+      "notesInFlow": true,
+      "color": "#a855f7"
+    }
+  ],
+  "connections": {
+    "Manual Setup": {
+      "main": [
+        [
+          {
+            "node": "Create posted_urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create posted_urls": {
+      "main": [
+        [
+          {
+            "node": "Create published_posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create published_posts": {
+      "main": [
+        [
+          {
+            "node": "Create run_logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "activeVersionId": null,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": null,
+  "scopes": [
+    "execution:delete",
+    "execution:list",
+    "execution:read",
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "checksum": "b630bdb5d6d4eefa044fa6525f28b0435f6a5ef7683edb271e16515ac4d8bb66"
+}

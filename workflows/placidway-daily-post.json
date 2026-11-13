@@ -1,0 +1,4114 @@
+{
+  "id": "UZv5qQMVxAe7C25s",
+  "name": "PlacidWay Daily Social Post",
+  "description": null,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "={{ $env.SCHEDULE_CRON || '0 9 * * *' }}"
+            }
+          ]
+        },
+        "misfirePolicy": "runOnce"
+      },
+      "id": "ef2281c3-c01f-5e20-bea2-c209a86d762e",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Daily 09:00 Asia/Jakarta (SCHEDULE_CRON)"
+    },
+    {
+      "parameters": {},
+      "id": "58300831-4051-5fe2-baa0-cd55e5a27a57",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        224
+      ],
+      "notesInFlow": true,
+      "notes": "Run the pipeline on demand (demo / testing)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-0",
+              "name": "base_url",
+              "value": "={{ $env.BASE_URL || 'https://www.placidway.com' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-1",
+              "name": "crawl_delay",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "cfg-2",
+              "name": "llm_model",
+              "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-3",
+              "name": "auto_publish",
+              "value": "={{ $env.AUTO_PUBLISH === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "cfg-4",
+              "name": "publisher_mode",
+              "value": "={{ $env.PUBLISHER_MODE || 'simulate' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-5",
+              "name": "alert_channel",
+              "value": "={{ $env.ALERT_CHANNEL || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-6",
+              "name": "reviewer_notify",
+              "value": "={{ $env.REVIEWER_NOTIFY || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-7",
+              "name": "max_per_sitemap",
+              "value": 50,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "id": "ea3a58fd-1aaa-5788-851e-ebd4ce95c8cf",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        240,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "All tunables come from env vars - see README"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.base_url || 'https://www.placidway.com' }}/robots.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c4d0dd02-ebac-5d6e-9de4-53b3d2b73903",
+      "name": "Fetch robots.txt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        0
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Read Crawl-delay + Sitemap directive"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst raw = $json.data || '';\nconst crawl = raw.match(/crawl-delay:\\s*(\\d+)/i);\nconst sitemap = raw.match(/sitemap:\\s*(\\S+)/i);\nconst disallow = (raw.match(/^Disallow:\\s*(.+)$/gmi) || []).map(l => l.replace(/^Disallow:\\s*/i, '').trim());\n\nreturn [{\n  json: {\n    crawl_delay: crawl ? Number(crawl[1]) : 3,\n    sitemap_url: sitemap ? sitemap[1].replace(/[>\\s]+$/, '') : \"https://www.placidway.com\" + '/sitemap.xml',\n    disallow_rules: disallow,\n    robots_text: raw.slice(0, 3000),\n  },\n}];\n"
+      },
+      "id": "8409f97a-e622-564f-8e0f-40a6a93cc1d4",
+      "name": "Parse robots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Extract crawl_delay (seconds) and sitemap URL"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Parse robots').first().json.sitemap_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c782e4d7-6d2c-5ccb-b855-96bc11312d07",
+      "name": "Fetch sitemap index",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        0
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Sitemap index -> per-section sub-sitemaps"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst raw = $json.data || '';\nconst locs = [...raw.matchAll(/<loc>\\s*([^<]+?)\\s*<\\/loc>/g)].map(m => m[1].trim());\n\nconst find = (needle) => {\n  const hit = locs.find(u => u.includes(needle));\n  return hit || '';\n};\n\nreturn [{\n  json: {\n    articles_url: find('sitemap_articles.xml'),\n    packages_url: find('sitemap_packages.xml'),\n    profiles_url: find('sitemap_profiles.xml'),\n    answers_url: find('sitemap_answers.xml'),\n    sitemap_count: locs.length,\n  },\n}];\n"
+      },
+      "id": "297ef4f1-cf54-54ce-98d3-804ac3588487",
+      "name": "Parse sitemap index",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Resolve the 4 content-type sub-sitemaps we care about"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse robots').first().json.crawl_delay }}"
+      },
+      "id": "85ae4eef-3ab3-5d17-af02-23f769341347",
+      "name": "Wait Articles",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        0
+      ],
+      "notesInFlow": true,
+      "webhookId": "3adfb9d7-bb12-4e31-804d-ff13290704c3",
+      "notes": "Honor robots.txt Crawl-delay (3s)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Parse sitemap index').first().json.articles_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3edad0a0-fe10-5595-9966-f288a602285f",
+      "name": "Fetch Articles sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1680,
+        0
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Articles sitemap (article URLs with lastmod)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst contentType = 'article';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+      },
+      "id": "97489a76-f55c-5fa3-950c-cd7f70c215dc",
+      "name": "Parse Articles sitemap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Keep the articles with the freshest lastmod"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse robots').first().json.crawl_delay }}"
+      },
+      "id": "511924f9-b5a4-5a12-95b2-414f400aeeb5",
+      "name": "Wait Packages",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        0
+      ],
+      "notesInFlow": true,
+      "webhookId": "84fbf80d-3c07-429c-a31a-fcb7451335b9",
+      "notes": "Honor robots.txt Crawl-delay (3s)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Parse sitemap index').first().json.packages_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "0e2848cb-cc31-5dd4-967a-2229b106c02f",
+      "name": "Fetch Packages sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2400,
+        0
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Packages sitemap (package URLs with lastmod)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst contentType = 'package';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+      },
+      "id": "917f0f17-e409-5d45-90a0-c05efd3ffe8d",
+      "name": "Parse Packages sitemap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Keep the packages with the freshest lastmod"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse robots').first().json.crawl_delay }}"
+      },
+      "id": "52b94213-2c25-53c6-a35a-879e3ebd9921",
+      "name": "Wait Profiles",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        0
+      ],
+      "notesInFlow": true,
+      "webhookId": "52d1b29b-845a-4ea2-8bf3-17ceb86b8dba",
+      "notes": "Honor robots.txt Crawl-delay (3s)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Parse sitemap index').first().json.profiles_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "069e09db-e232-510d-bbe2-6312b2ff553a",
+      "name": "Fetch Profiles sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3120,
+        0
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Profiles sitemap (profile URLs with lastmod)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst contentType = 'profile';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+      },
+      "id": "c746f845-8bd7-5663-ad43-b728677715a8",
+      "name": "Parse Profiles sitemap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        320
+      ],
+      "notesInFlow": true,
+      "notes": "Keep the profiles with the freshest lastmod"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse robots').first().json.crawl_delay }}"
+      },
+      "id": "abf3a421-a855-5bf2-ad2a-0ad0a88a0999",
+      "name": "Wait Answers",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        288
+      ],
+      "notesInFlow": true,
+      "webhookId": "768cb57b-1d28-46ef-86aa-48be53c73ea4",
+      "notes": "Honor robots.txt Crawl-delay (3s)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Parse sitemap index').first().json.answers_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d2dcb1ce-f3f3-5cec-9cdc-979e60c650b4",
+      "name": "Fetch Answers sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        288
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Answers sitemap (answer URLs with lastmod)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst contentType = 'answer';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+      },
+      "id": "eb72cda8-e414-5048-9671-00a8e7d6e11c",
+      "name": "Parse Answers sitemap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "Keep the answers with the freshest lastmod"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "id": "3fc5aaa6-4b3e-5988-87ed-4f6d35a1931d",
+      "name": "Merge candidates",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2160,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "One list: all 4 content types combined"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst groups = $input.all().map(i => i.json || {});\nconst all = [];\nfor (const g of groups) {\n  const items = (g && Array.isArray(g.items)) ? g.items : [];\n  for (const it of items) all.push(it);\n}\nall.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nconst seen = new Set();\nconst deduped = all.filter(x => { if (seen.has(x.url)) return false; seen.add(x.url); return true; });\nreturn [{ json: { candidates: deduped, candidate_count: deduped.length } }];\n"
+      },
+      "id": "62f4521f-c3e8-541c-8aad-f613b8f8ed87",
+      "name": "Flatten and sort",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "Normalize, dedupe, sort by lastmod (tiebreak: URL desc)"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "returnAll": true,
+        "orderBy": true
+      },
+      "id": "023c9dbe-2a80-50db-aab9-a763e1d19ed4",
+      "name": "Load posted URLs",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        288
+      ],
+      "notesInFlow": true,
+      "alwaysOutputData": true,
+      "notes": "Dedupe ledger: everything we have already touched"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst candidates = $('Flatten and sort').first().json.candidates || [];\nconst postedItems = $('Load posted URLs').all().map(i => i.json || {}).filter(p => p.url);\nconst statusByUrl = new Map(postedItems.map(p => [p.url, p.status]));\nconst blocked = new Set(['published', 'quarantined', 'pending_review']);\nconst eligible = candidates.filter(c => {\n  const st = statusByUrl.get(c.url);\n  return !st || !blocked.has(st);\n});\nconst selected = eligible[0] || null;\nreturn [{\n  json: {\n    selected: selected,\n    selected_url: selected ? selected.url : '',\n    has_candidate: !!selected,\n    eligible_count: eligible.length,\n    candidate_count: candidates.length,\n    posted_count: postedItems.length,\n  },\n}];\n"
+      },
+      "id": "da0e04bc-ca61-50c3-be5a-09590142674b",
+      "name": "Select candidate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "Freshest unseen URL (excludes published/quarantined/pending_review)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c-has",
+              "leftValue": "={{ $json.has_candidate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "id": "def7f53e-8ad3-52e0-a4a1-7f564b3ad40b",
+      "name": "Has candidate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1200,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "All candidates used up? -> clean exit, not an error"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $json.selected.url }}",
+            "content_type": "={{ $json.selected.content_type }}",
+            "status": "reserved",
+            "created_at": "={{ $now.toISO() }}",
+            "updated_at": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "743124bc-d2f8-5278-aa5e-d8b6797abbdd",
+      "name": "Reserve URL",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "Claim the URL (state: reserved) so a re-run cannot double-post"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse robots').first().json.crawl_delay }}"
+      },
+      "id": "6a3bc907-c5a0-5afa-bfa8-a52e0bb4407d",
+      "name": "Wait before page fetch",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        288
+      ],
+      "notesInFlow": true,
+      "webhookId": "78d1d458-cec9-4eb7-9d5a-f0acf6425656",
+      "notes": "One more crawl-delay before the single item page request"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "9f4d984f-0a70-5fcb-8e79-63dd50da0f92",
+      "name": "Fetch item page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        288
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Fetch ONLY the one selected page (1 request, not 15k)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst html = $json.data || '';\nconst clean = s => (s || '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst title = clean(((html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1]));\nconst ogTitle = ((html.match(/<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst ogDesc = ((html.match(/<meta[^>]+property=[\"']og:description[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst metaDesc = ((html.match(/<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst ogImage = ((html.match(/<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\n\nlet body = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<noscript[\\s\\S]*?<\\/noscript>/gi, ' ')\n  .replace(/<svg[\\s\\S]*?<\\/svg>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ');\nbody = body\n  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\").replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&#x27;/g, \"'\").replace(/&#x2F;/g, '/');\nbody = body.replace(/\\s+/g, ' ').trim();\n\nconst sel = $('Select candidate').first().json.selected || {};\nconst h1 = clean((html.match(/<h1[^>]*>([\\s\\S]*?)<\\/h1>/i) || [])[1]);\nlet main = body;\nif (h1) {\n  const idx = body.indexOf(h1.slice(0, 40));\n  if (idx > 0) main = body.slice(idx);\n}\nmain = main.slice(0, 6000);\n\nreturn [{\n  json: {\n    title: (ogTitle || title || sel.url || '').trim(),\n    meta_description: (ogDesc || metaDesc || '').trim(),\n    image_url: ogImage,\n    source_url: sel.url || '',\n    content_type: sel.content_type || '',\n    source_body: main,\n    source_body_length: main.length,\n    page_fetched_at: new Date().toISOString(),\n  },\n}];\n"
+      },
+      "id": "d7b6455b-cf5f-5af7-903c-be0a5da0a09b",
+      "name": "Parse item page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "title / og:image / cleaned main body (<=6k chars)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst lines = String($json.source_body || '').split('\\n');\nconst url = String($json.source_url || '');\nconst title = String($json.title || '');\nconst summary = String($json.meta_description || '');\nconst body = String($json.source_body || '').slice(0, 4000);\n\nconst prompt = [\n  'You write Facebook posts for PlacidWay, a medical tourism marketplace.',\n  'Write ONE post about the source page below.',\n  '',\n  'RULES (hard):',\n  '- Hook: <= 12 words, informative, NO superlatives (never \"best\", \"cheapest\", \"leading\").',\n  '- value_lines: 2 to 4 short lines (max 14 words each) that state ONLY facts present in the source.',\n  '- cta: one short call to action, e.g. \"Read more:\"',\n  '- source_url: copy the source URL EXACTLY as given.',\n  '- hashtags: 3 to 5 hashtags derived from the page (mix #MedicalTourism + treatment/country).',\n  '- English, informative tone, at most 2 emojis.',\n  '- Total characters BEFORE the link must be under 500.',\n  '- Do NOT state or imply medical outcomes, guarantees, or recovery promises.',\n  '- Do NOT invent prices. If you mention a price it must be copied verbatim from the source.',\n  '',\n  'SOURCE URL: ' + url,\n  'PAGE TITLE: ' + title,\n  'PAGE SUMMARY: ' + summary,\n  'PAGE BODY:',\n  body,\n].join('\\n');\n\nreturn [{ json: { ...$json, draft_prompt: prompt } }];\n"
+      },
+      "id": "56554785-bc00-5f2b-90b0-13caebb3b090",
+      "name": "Build draft prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Prompt template with the fetched source injected"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_prompt }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "24be1133-9f9c-5c47-a717-7bebc9e5c04a",
+      "name": "Draft post",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "LLM draft: hook + value lines + CTA + hashtags (structured JSON)"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "4111c5f3-3105-5cea-916e-1152acff76f8",
+      "name": "Merge draft + source",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        304,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Re-attach the source fields the LLM node drops"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst o = $json.output || {};\nconst hook = (o.hook || '').trim();\nconst lines = Array.isArray(o.value_lines) ? o.value_lines.map(s => String(s).trim()).filter(Boolean) : [];\nconst cta = (o.cta || '').trim();\nconst hashtags = Array.isArray(o.hashtags) ? o.hashtags.map(s => String(s).trim()).filter(Boolean) : [];\nconst sourceUrl = (o.source_url || $json.source_url || '').trim();\n\nconst parts = [];\nif (hook) parts.push(hook);\nfor (const l of lines) parts.push('- ' + l);\nif (cta) parts.push(cta);\nif (sourceUrl) parts.push(sourceUrl);\nif (hashtags.length) parts.push(hashtags.join(' '));\nconst postText = parts.join('\\n');\n\nreturn [{\n  json: {\n    ...$json,\n    post_text: postText,\n    hashtags: hashtags,\n    source_url: sourceUrl,\n    pre_link_length: postText.split(/https?:\\/\\//)[0].length,\n  },\n}];\n"
+      },
+      "id": "e0e6491f-fd55-545b-915a-74a5383e183c",
+      "name": "Compose post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Flatten the LLM's {output:{...}} into post_text + hashtags"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst post = ($json.post_text || '').trim();\nconst sourceBody = $json.source_body || '';\nconst sourceUrl = $json.source_url || '';\nconst hashtags = Array.isArray($json.hashtags) ? $json.hashtags : [];\nconst errors = [];\n\n// 1. structure\nconst lines = post.split('\\n').map(l => l.trim()).filter(Boolean);\nif (lines.length < 3) errors.push('post has fewer than 3 lines (hook/value/cta/link)');\nif (hashtags.length < 3) errors.push('too few hashtags: ' + hashtags.length + ' (min 3)');\nif (hashtags.length > 5) errors.push('too many hashtags: ' + hashtags.length + ' (max 5)');\n\n// 2. length < 500 before the link\nconst preLink = post.split(/https?:\\/\\//)[0].length;\nif (preLink > 500) errors.push('pre-link length ' + preLink + ' > 500');\n\n// 3. link check\nconst urlsInPost = post.match(/https?:\\/\\/[^\\s]+/g) || [];\nif (!urlsInPost.length) errors.push('no source link in post');\nfor (const u of urlsInPost) {\n  const normalized = u.replace(/[).,]+$/, '');\n  if (normalized !== sourceUrl) errors.push('link mismatch: ' + normalized + ' != ' + sourceUrl);\n}\n\n// 4. blacklist\nconst blacklist = [\n  'guarantee', 'guaranteed', 'cure ', 'cures ', '100%', 'best results', 'best choice',\n  'risk-free', 'risk free', 'permanent result', 'miracle', 'no side effects',\n  'fully recovered', 'will heal', 'certainly', 'clinically proven', 'painless',\n  'zero pain', 'instant result', 'first in the world', 'number one', 'no. 1',\n];\nconst lower = post.toLowerCase();\nfor (const w of blacklist) {\n  if (lower.includes(w)) errors.push('blacklisted phrase: \"' + w.trim() + '\"');\n}\n\n// 5. superlatives in hook\nconst hookLine = lines[0] || '';\nconst superlatives = ['best', 'cheapest', 'lowest cost', 'top-rated', 'world class', 'world-class', 'leading', 'premier'];\nfor (const w of superlatives) {\n  if (hookLine.toLowerCase().includes(w)) errors.push('superlative in hook: \"' + w + '\"');\n}\n\n// 6. price check: every $amount in the post must exist verbatim in the source body\nconst priceRe = /\\$\\s?[\\d,]+(?:\\.\\d+)?/g;\nconst postPrices = post.match(priceRe) || [];\nfor (const p of postPrices) {\n  if (!sourceBody.includes(p)) errors.push('price not found verbatim in source: ' + p);\n}\n\n// 7. emoji budget (<= 2)\nconst emojis = post.match(/[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2190}-\\u{21FF}\\u{2B00}-\\u{2BFF}]/gu) || [];\nif (emojis.length > 2) errors.push('too many emojis: ' + emojis.length + ' (max 2)');\n\n// 8. marketing copy copied from source (og:description hint) is allowed but flagged\nconst marketingFlagged = sourceBody.toLowerCase().includes('save 40') || sourceBody.toLowerCase().includes('save 50');\n\nreturn [{\n  json: {\n    ...$json,\n    guardrail: {\n      passed: errors.length === 0,\n      errors: errors,\n      errors_count: errors.length,\n      pre_link_length: preLink,\n      hashtags_count: hashtags.length,\n      prices_found: postPrices,\n      emojis_count: emojis.length,\n      marketing_copy_flagged: marketingFlagged,\n    },\n  },\n}];\n"
+      },
+      "id": "55ff44e2-aeb2-5944-b994-838d8499ef29",
+      "name": "Rule guardrail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Deterministic checks: length, link, blacklist, prices, hashtags, emoji"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c-rule",
+              "leftValue": "={{ $json.guardrail.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "id": "4f62dcfe-4eaf-5cff-bbba-61a9b708ff63",
+      "name": "Rule pass?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        960,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Rule-based gate (cheap, free, instant)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst post = String($json.post_text || '');\nconst body = String($json.source_body || '').slice(0, 6000);\n\nconst prompt = [\n  'You are a compliance reviewer for medical tourism social media.',\n  'Does the post below make medical claims, promise outcomes, invent prices,',\n  'or state facts that are NOT supported by the source page?',\n  '',\n  'Answer FAIL only if there is CLEAR evidence of any of these:',\n  '- It claims a treatment is guaranteed, risk-free, painless, permanent, or a cure.',\n  '- It promises an outcome (recovery speed, success rate, \"patients feel better\").',\n  '- It contains a price that does not appear verbatim in the source body.',\n  '- It states facts (statistics, accreditations, doctor credentials) absent from the source.',\n  '- It uses obvious marketing superlatives (\"best\", \"cheapest\", \"world-class\", \"leading\").',\n  '',\n  'Do NOT fail for neutral descriptive language such as \"specializes in\", \"offers\",',\n  '\"provides\", or simply listing the treatments a clinic performs. Those are fine.',\n  'Be conservative: when unsure, answer PASS.',\n  'Otherwise answer PASS.',\n  '',\n  'POST:',\n  post,\n  '',\n  'SOURCE BODY:',\n  body,\n].join('\\n');\n\nreturn [{ json: { ...$json, review_prompt: prompt } }];\n"
+      },
+      "id": "58f1943d-6c61-5345-a5dc-29b17eef9689",
+      "name": "Build review prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        496
+      ],
+      "notesInFlow": true,
+      "notes": "Independent reviewer prompt (post + source body)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.review_prompt }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "bf5e87ad-123f-523c-9d61-bb28d42a707e",
+      "name": "Compliance review",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1392,
+        496
+      ],
+      "notesInFlow": true,
+      "notes": "Independent LLM pass: medical claims / invented prices / unsupported facts"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "3d837b58-1554-5e1a-8d7f-dda903213034",
+      "name": "Merge review + draft",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1744,
+        864
+      ],
+      "notesInFlow": true,
+      "notes": "Combine verdict with the draft payload"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst o = $json.output || {};\nconst decision = String(o.decision || '').toUpperCase();\nconst reasons = Array.isArray(o.reasons) ? o.reasons : [];\nreturn [{\n  json: {\n    ...$json,\n    review_passed: decision === 'PASS',\n    review_decision: decision,\n    review_reasons: reasons,\n  },\n}];\n"
+      },
+      "id": "3880e40a-ad08-5a1a-bb2b-a8cc74805651",
+      "name": "Normalize review verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Normalize the reviewer verdict to a boolean"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c-review",
+              "leftValue": "={{ $json.review_passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "id": "ef375679-0d1c-5571-8d9e-b534e452142f",
+      "name": "Review pass?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        2160,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "LLM gate: any FAIL -> quarantine"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst autoPublish = cfg.auto_publish === true;\nconst publisherMode = cfg.publisher_mode || 'simulate';\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst postId = 'sim_' + now.getTime();\n\nlet status = 'pending_review';\nif (publisherMode === 'simulate') {\n  status = autoPublish ? 'published' : 'pending_review';\n} else {\n  status = autoPublish ? 'published' : 'pending_review';\n}\n\nreturn [{\n  json: {\n    ...$json,\n    run_id: runId,\n    post_id: postId,\n    status: status,\n    publisher_mode: publisherMode,\n    auto_publish: autoPublish,\n    published_at: now.toISOString(),\n  },\n}];\n"
+      },
+      "id": "cfe6c356-327f-5b9f-916c-ea1e0bccc602",
+      "name": "Publish (simulated)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        544
+      ],
+      "notesInFlow": true,
+      "notes": "simulate -> published_posts; AUTO_PUBLISH=false -> pending_review"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "mode": "name",
+          "value": "published_posts"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "post_id": "={{ $json.post_id }}",
+            "url": "={{ $json.source_url }}",
+            "title": "={{ $json.title }}",
+            "content_type": "={{ $json.content_type }}",
+            "post_text": "={{ $json.post_text }}",
+            "image_url": "={{ $json.image_url }}",
+            "status": "={{ $json.status }}",
+            "guardrail_result": "PASS",
+            "publisher_mode": "={{ $json.publisher_mode }}",
+            "created_at": "={{ $json.published_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e72e47b4-90f8-5456-ab37-92b76dfc577e",
+      "name": "Write published_posts",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        544
+      ],
+      "notesInFlow": true,
+      "notes": "The 'published post' record (simulated publisher)"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "keyValue": "={{ $json.url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "updated_at": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "fe4405f8-9f2a-5ed5-bae9-74c07cd0c7fe",
+      "name": "Mark posted",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        544
+      ],
+      "notesInFlow": true,
+      "notes": "Flip reserved -> published/pending_review"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "mode": "name",
+          "value": "run_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "run_id": "={{ $('Publish (simulated)').first().json.run_id }}",
+            "timestamp": "={{ $('Publish (simulated)').first().json.published_at }}",
+            "selected_url": "={{ $('Publish (simulated)').first().json.source_url }}",
+            "content_type": "={{ $('Publish (simulated)').first().json.content_type }}",
+            "post_text": "={{ $('Publish (simulated)').first().json.post_text }}",
+            "guardrail_result": "PASS",
+            "publisher_mode": "={{ $('Publish (simulated)').first().json.publisher_mode }}",
+            "post_id": "={{ $('Publish (simulated)').first().json.post_id }}",
+            "status": "={{ $('Publish (simulated)').first().json.status }}",
+            "error": ""
+          }
+        },
+        "options": {}
+      },
+      "id": "c14ce488-54dc-593f-9aea-5dd35ce97833",
+      "name": "Log run",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3120,
+        544
+      ],
+      "notesInFlow": true,
+      "notes": "Append-only run log (audit trail)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst count = $('Select candidate').first().json.candidate_count || 0;\nreturn [{\n  json: {\n    run_id: runId,\n    timestamp: now.toISOString(),\n    status: 'no_new_content',\n    selected_url: '',\n    content_type: '',\n    post_text: '',\n    guardrail_result: 'n/a',\n    publisher_mode: 'n/a',\n    post_id: '',\n    error: 'No unseen candidates left (candidates=' + count + ').',\n    candidates_exhausted: true,\n  },\n}];\n"
+      },
+      "id": "c1337a22-c024-5c54-af71-3ce66b9b1b01",
+      "name": "No new content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1120
+      ],
+      "notesInFlow": true,
+      "notes": "Clean exit: alert + log, NOT a workflow error"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "mode": "name",
+          "value": "run_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "run_id": "={{ $json.run_id }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "selected_url": "",
+            "content_type": "",
+            "post_text": "",
+            "guardrail_result": "n/a",
+            "publisher_mode": "n/a",
+            "post_id": "",
+            "status": "no_new_content",
+            "error": "={{ $json.error }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5ddacef0-29f6-58cb-a33b-6e77c96f4253",
+      "name": "Log no content",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1120
+      ],
+      "notesInFlow": true,
+      "notes": "Record the clean exit"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst channel = cfg.alert_channel || '';\nconst text = '[PlacidWay Bot] No new content to post. All candidates are already published/quarantined.';\nreturn [{ json: { channel: channel, message: text, text: text, severity: 'info', kind: 'no_new_content' } }];\n"
+      },
+      "id": "250d433f-8010-5887-a7b0-3449846a24b4",
+      "name": "Alert no content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1120
+      ],
+      "notesInFlow": true,
+      "notes": "Build the alert payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.channel }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify({text: $json.text, content: $json.text, message: $json.message}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "7f90eddf-f8c6-5a6f-8406-ac2b21839bd6",
+      "name": "Send no-content alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        1120
+      ],
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "ALERT_CHANNEL webhook (Telegram/Discord/generic)"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst g = $json.guardrail || {};\nconst r = $json.review_reasons || [];\nconst reasons = (g.errors && g.errors.length ? g.errors : r);\nconst sel = $('Select candidate').first().json.selected || {};\nreturn [{\n  json: {\n    run_id: runId,\n    timestamp: now.toISOString(),\n    status: 'quarantined',\n    selected_url: sel.url || '',\n    content_type: sel.content_type || '',\n    post_text: $json.post_text || '',\n    guardrail_result: 'FAIL',\n    publisher_mode: 'n/a',\n    post_id: '',\n    error: reasons.join(' | '),\n    quarantine_reason: reasons,\n  },\n}];\n"
+      },
+      "id": "b50ba2e2-5aaa-5116-a6d3-267cf1217c9a",
+      "name": "Quarantine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1408
+      ],
+      "notesInFlow": true,
+      "notes": "Mark the item quarantined; it will never be selected again"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "mode": "name",
+          "value": "posted_urls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "keyValue": "={{ $json.selected_url }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "quarantined",
+            "updated_at": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "09445508-20b0-5357-8146-71e9b5cb4a55",
+      "name": "Mark quarantined",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1408
+      ],
+      "notesInFlow": true,
+      "notes": "reserved -> quarantined"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "mode": "name",
+          "value": "run_logs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "run_id": "={{ $('Quarantine').first().json.run_id }}",
+            "timestamp": "={{ $('Quarantine').first().json.timestamp }}",
+            "selected_url": "={{ $('Quarantine').first().json.selected_url }}",
+            "content_type": "={{ $('Quarantine').first().json.content_type }}",
+            "post_text": "={{ $('Quarantine').first().json.post_text }}",
+            "guardrail_result": "FAIL",
+            "publisher_mode": "n/a",
+            "post_id": "",
+            "status": "quarantined",
+            "error": "={{ $('Quarantine').first().json.error }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "7c9f8a71-a32d-5b8c-804c-42488149db28",
+      "name": "Log quarantine",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1408
+      ],
+      "notesInFlow": true,
+      "notes": "Record the quarantine + reasons"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst channel = cfg.alert_channel || '';\nconst q = $('Quarantine').first().json || {};\nconst url = q.selected_url || '';\nconst reasons = Array.isArray(q.quarantine_reason) ? q.quarantine_reason : [q.quarantine_reason];\nconst text = '[PlacidWay Bot] Post quarantined for: ' + url + '\\nReasons: ' + reasons.join('; ');\nreturn [{ json: { channel: channel, message: text, text: text, severity: 'warning', kind: 'quarantine' } }];\n"
+      },
+      "id": "b10418ff-4dfb-55c3-84e1-6ca51e15b602",
+      "name": "Alert quarantine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1408
+      ],
+      "notesInFlow": true,
+      "notes": "Build the quarantine alert"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.channel }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify({text: $json.text, content: $json.text, message: $json.message}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "9172c72c-9bc7-5b00-869d-fd6da1d906a0",
+      "name": "Send quarantine alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        1408
+      ],
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "Human-in-the-loop: a FAIL must never be silent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "mode": "id",
+          "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}"
+        },
+        "responsesApiEnabled": false,
+        "options": {
+          "maxTokens": 800,
+          "temperature": 0.4,
+          "topP": 1
+        }
+      },
+      "id": "2a1381f7-d671-5e7d-82f2-4c20a5abc170",
+      "name": "Draft model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        816
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "sGTvj15nf94koXYa",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4o-mini via LLM_MODEL env var"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"hook\": {\n      \"type\": \"string\"\n    },\n    \"value_lines\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"cta\": {\n      \"type\": \"string\"\n    },\n    \"hashtags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"source_url\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"hook\",\n    \"value_lines\",\n    \"cta\",\n    \"hashtags\",\n    \"source_url\"\n  ]\n}"
+      },
+      "id": "e06fc9f2-b449-5cad-87ce-c925024f8941",
+      "name": "Draft output parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        144,
+        816
+      ],
+      "notesInFlow": true,
+      "notes": "Force JSON: hook, value_lines, cta, hashtags, source_url"
+    },
+    {
+      "parameters": {
+        "model": {
+          "mode": "id",
+          "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}"
+        },
+        "responsesApiEnabled": false,
+        "options": {
+          "maxTokens": 800,
+          "temperature": 0.4,
+          "topP": 1
+        }
+      },
+      "id": "7477807d-dabb-5aa4-bae5-2170496180f3",
+      "name": "Review model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1392,
+        672
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "sGTvj15nf94koXYa",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Same model, independent prompt"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"decision\": {\n      \"type\": \"string\"\n    },\n    \"reasons\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"medical_claims\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"invented_prices\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"unsupported_facts\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"decision\",\n    \"reasons\"\n  ]\n}"
+      },
+      "id": "41ebd09f-5b1a-5ccd-a462-21d7aecfc96d",
+      "name": "Review output parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1536,
+        672
+      ],
+      "notesInFlow": true,
+      "notes": "Force JSON: decision PASS/FAIL + reasons"
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch robots.txt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch robots.txt": {
+      "main": [
+        [
+          {
+            "node": "Parse robots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse robots": {
+      "main": [
+        [
+          {
+            "node": "Fetch sitemap index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch sitemap index": {
+      "main": [
+        [
+          {
+            "node": "Parse sitemap index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse sitemap index": {
+      "main": [
+        [
+          {
+            "node": "Wait Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Articles": {
+      "main": [
+        [
+          {
+            "node": "Fetch Articles sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Articles sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Articles sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Articles sitemap": {
+      "main": [
+        [
+          {
+            "node": "Wait Packages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Packages": {
+      "main": [
+        [
+          {
+            "node": "Fetch Packages sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Packages sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Packages sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Packages sitemap": {
+      "main": [
+        [
+          {
+            "node": "Wait Profiles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge candidates",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait Profiles": {
+      "main": [
+        [
+          {
+            "node": "Fetch Profiles sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Profiles sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Profiles sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Profiles sitemap": {
+      "main": [
+        [
+          {
+            "node": "Wait Answers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge candidates",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Wait Answers": {
+      "main": [
+        [
+          {
+            "node": "Fetch Answers sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Answers sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Answers sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Answers sitemap": {
+      "main": [
+        [
+          {
+            "node": "Merge candidates",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge candidates": {
+      "main": [
+        [
+          {
+            "node": "Flatten and sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten and sort": {
+      "main": [
+        [
+          {
+            "node": "Load posted URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load posted URLs": {
+      "main": [
+        [
+          {
+            "node": "Select candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select candidate": {
+      "main": [
+        [
+          {
+            "node": "Has candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has candidate?": {
+      "main": [
+        [
+          {
+            "node": "Reserve URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No new content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reserve URL": {
+      "main": [
+        [
+          {
+            "node": "Wait before page fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait before page fetch": {
+      "main": [
+        [
+          {
+            "node": "Fetch item page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch item page": {
+      "main": [
+        [
+          {
+            "node": "Parse item page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse item page": {
+      "main": [
+        [
+          {
+            "node": "Build draft prompt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge draft + source",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Build draft prompt": {
+      "main": [
+        [
+          {
+            "node": "Draft post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft post": {
+      "main": [
+        [
+          {
+            "node": "Merge draft + source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge draft + source": {
+      "main": [
+        [
+          {
+            "node": "Compose post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose post": {
+      "main": [
+        [
+          {
+            "node": "Rule guardrail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule guardrail": {
+      "main": [
+        [
+          {
+            "node": "Rule pass?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge review + draft",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Rule pass?": {
+      "main": [
+        [
+          {
+            "node": "Build review prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build review prompt": {
+      "main": [
+        [
+          {
+            "node": "Compliance review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance review": {
+      "main": [
+        [
+          {
+            "node": "Merge review + draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge review + draft": {
+      "main": [
+        [
+          {
+            "node": "Normalize review verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize review verdict": {
+      "main": [
+        [
+          {
+            "node": "Review pass?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review pass?": {
+      "main": [
+        [
+          {
+            "node": "Publish (simulated)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish (simulated)": {
+      "main": [
+        [
+          {
+            "node": "Write published_posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write published_posts": {
+      "main": [
+        [
+          {
+            "node": "Mark posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark posted": {
+      "main": [
+        [
+          {
+            "node": "Log run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No new content": {
+      "main": [
+        [
+          {
+            "node": "Log no content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log no content": {
+      "main": [
+        [
+          {
+            "node": "Alert no content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert no content": {
+      "main": [
+        [
+          {
+            "node": "Send no-content alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quarantine": {
+      "main": [
+        [
+          {
+            "node": "Mark quarantined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark quarantined": {
+      "main": [
+        [
+          {
+            "node": "Log quarantine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log quarantine": {
+      "main": [
+        [
+          {
+            "node": "Alert quarantine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert quarantine": {
+      "main": [
+        [
+          {
+            "node": "Send quarantine alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft model": {
+      "main": [],
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft post",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft output parser": {
+      "main": [],
+      "ai_outputParser": [
+        [
+          {
+            "node": "Draft post",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review model": {
+      "main": [],
+      "ai_languageModel": [
+        [
+          {
+            "node": "Compliance review",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review output parser": {
+      "main": [],
+      "ai_outputParser": [
+        [
+          {
+            "node": "Compliance review",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Jakarta",
+    "saveExecutionProgress": true,
+    "executionOrder": "v1",
+    "errorWorkflow": "DHIVZYteY2q3wEtS",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": {
+    "version": "2.47.3",
+    "instanceId": ""
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "activeVersionId": "6e836762-681c-4e1a-a87f-30df31fc76ff",
+  "versionCounter": 33,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": {
+    "updatedAt": "2026-11-10T21:29:59.267Z",
+    "createdAt": "2026-11-10T21:29:59.267Z",
+    "versionId": "6e836762-681c-4e1a-a87f-30df31fc76ff",
+    "workflowId": "UZv5qQMVxAe7C25s",
+    "nodes": [
+      {
+        "id": "ef2281c3-c01f-5e20-bea2-c209a86d762e",
+        "name": "Schedule",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "={{ $env.SCHEDULE_CRON || '0 9 * * *' }}"
+              }
+            ]
+          },
+          "misfirePolicy": "runOnce"
+        },
+        "notes": "Daily 09:00 Asia/Jakarta (SCHEDULE_CRON)",
+        "notesInFlow": true,
+        "color": "#5b8ff9"
+      },
+      {
+        "id": "58300831-4051-5fe2-baa0-cd55e5a27a57",
+        "name": "Manual Run",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          0,
+          220
+        ],
+        "parameters": {},
+        "notes": "Run the pipeline on demand (demo / testing)",
+        "notesInFlow": true,
+        "color": "#5b8ff9"
+      },
+      {
+        "id": "ea3a58fd-1aaa-5788-851e-ebd4ce95c8cf",
+        "name": "Config",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.5,
+        "position": [
+          240,
+          0
+        ],
+        "parameters": {
+          "mode": "manual",
+          "assignments": {
+            "assignments": [
+              {
+                "id": "cfg-0",
+                "name": "base_url",
+                "value": "={{ $env.BASE_URL || 'https://www.placidway.com' }}",
+                "type": "string"
+              },
+              {
+                "id": "cfg-1",
+                "name": "crawl_delay",
+                "value": 3,
+                "type": "number"
+              },
+              {
+                "id": "cfg-2",
+                "name": "llm_model",
+                "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}",
+                "type": "string"
+              },
+              {
+                "id": "cfg-3",
+                "name": "auto_publish",
+                "value": "={{ $env.AUTO_PUBLISH === 'true' }}",
+                "type": "boolean"
+              },
+              {
+                "id": "cfg-4",
+                "name": "publisher_mode",
+                "value": "={{ $env.PUBLISHER_MODE || 'simulate' }}",
+                "type": "string"
+              },
+              {
+                "id": "cfg-5",
+                "name": "alert_channel",
+                "value": "={{ $env.ALERT_CHANNEL || '' }}",
+                "type": "string"
+              },
+              {
+                "id": "cfg-6",
+                "name": "reviewer_notify",
+                "value": "={{ $env.REVIEWER_NOTIFY || '' }}",
+                "type": "string"
+              },
+              {
+                "id": "cfg-7",
+                "name": "max_per_sitemap",
+                "value": 50,
+                "type": "number"
+              }
+            ]
+          },
+          "options": {
+            "dotNotation": true
+          }
+        },
+        "notes": "All tunables come from env vars - see README",
+        "notesInFlow": true,
+        "color": "#5b8ff9"
+      },
+      {
+        "id": "c4d0dd02-ebac-5d6e-9de4-53b3d2b73903",
+        "name": "Fetch robots.txt",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          480,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $json.base_url || 'https://www.placidway.com' }}/robots.txt",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Read Crawl-delay + Sitemap directive",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "8409f97a-e622-564f-8e0f-40a6a93cc1d4",
+        "name": "Parse robots",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          720,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst raw = $json.data || '';\nconst crawl = raw.match(/crawl-delay:\\s*(\\d+)/i);\nconst sitemap = raw.match(/sitemap:\\s*(\\S+)/i);\nconst disallow = (raw.match(/^Disallow:\\s*(.+)$/gmi) || []).map(l => l.replace(/^Disallow:\\s*/i, '').trim());\n\nreturn [{\n  json: {\n    crawl_delay: crawl ? Number(crawl[1]) : 3,\n    sitemap_url: sitemap ? sitemap[1].replace(/[>\\s]+$/, '') : \"https://www.placidway.com\" + '/sitemap.xml',\n    disallow_rules: disallow,\n    robots_text: raw.slice(0, 3000),\n  },\n}];\n"
+        },
+        "notes": "Extract crawl_delay (seconds) and sitemap URL",
+        "notesInFlow": true,
+        "color": "#f6bd16"
+      },
+      {
+        "id": "c782e4d7-6d2c-5ccb-b855-96bc11312d07",
+        "name": "Fetch sitemap index",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          960,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse robots').first().json.sitemap_url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Sitemap index -> per-section sub-sitemaps",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "297ef4f1-cf54-54ce-98d3-804ac3588487",
+        "name": "Parse sitemap index",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1200,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst raw = $json.data || '';\nconst locs = [...raw.matchAll(/<loc>\\s*([^<]+?)\\s*<\\/loc>/g)].map(m => m[1].trim());\n\nconst find = (needle) => {\n  const hit = locs.find(u => u.includes(needle));\n  return hit || '';\n};\n\nreturn [{\n  json: {\n    articles_url: find('sitemap_articles.xml'),\n    packages_url: find('sitemap_packages.xml'),\n    profiles_url: find('sitemap_profiles.xml'),\n    answers_url: find('sitemap_answers.xml'),\n    sitemap_count: locs.length,\n  },\n}];\n"
+        },
+        "notes": "Resolve the 4 content-type sub-sitemaps we care about",
+        "notesInFlow": true,
+        "color": "#f6bd16"
+      },
+      {
+        "id": "85ae4eef-3ab3-5d17-af02-23f769341347",
+        "name": "Wait Articles",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1440,
+          0
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": "={{ $('Parse robots').first().json.crawl_delay }}",
+          "unit": "seconds"
+        },
+        "notes": "Honor robots.txt Crawl-delay (3s)",
+        "notesInFlow": true,
+        "color": "#dcdde1",
+        "webhookId": "3adfb9d7-bb12-4e31-804d-ff13290704c3"
+      },
+      {
+        "id": "3edad0a0-fe10-5595-9966-f288a602285f",
+        "name": "Fetch Articles sitemap",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          1680,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse sitemap index').first().json.articles_url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Articles sitemap (article URLs with lastmod)",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "97489a76-f55c-5fa3-950c-cd7f70c215dc",
+        "name": "Parse Articles sitemap",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst contentType = 'article';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+        },
+        "notes": "Keep the articles with the freshest lastmod",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "511924f9-b5a4-5a12-95b2-414f400aeeb5",
+        "name": "Wait Packages",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          2160,
+          0
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": "={{ $('Parse robots').first().json.crawl_delay }}",
+          "unit": "seconds"
+        },
+        "notes": "Honor robots.txt Crawl-delay (3s)",
+        "notesInFlow": true,
+        "color": "#dcdde1",
+        "webhookId": "84fbf80d-3c07-429c-a31a-fcb7451335b9"
+      },
+      {
+        "id": "0e2848cb-cc31-5dd4-967a-2229b106c02f",
+        "name": "Fetch Packages sitemap",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          2400,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse sitemap index').first().json.packages_url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Packages sitemap (package URLs with lastmod)",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "917f0f17-e409-5d45-90a0-c05efd3ffe8d",
+        "name": "Parse Packages sitemap",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2640,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst contentType = 'package';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+        },
+        "notes": "Keep the packages with the freshest lastmod",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "52b94213-2c25-53c6-a35a-879e3ebd9921",
+        "name": "Wait Profiles",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          2880,
+          0
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": "={{ $('Parse robots').first().json.crawl_delay }}",
+          "unit": "seconds"
+        },
+        "notes": "Honor robots.txt Crawl-delay (3s)",
+        "notesInFlow": true,
+        "color": "#dcdde1",
+        "webhookId": "52d1b29b-845a-4ea2-8bf3-17ceb86b8dba"
+      },
+      {
+        "id": "069e09db-e232-510d-bbe2-6312b2ff553a",
+        "name": "Fetch Profiles sitemap",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          3120,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse sitemap index').first().json.profiles_url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Profiles sitemap (profile URLs with lastmod)",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "c746f845-8bd7-5663-ad43-b728677715a8",
+        "name": "Parse Profiles sitemap",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3120,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst contentType = 'profile';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+        },
+        "notes": "Keep the profiles with the freshest lastmod",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "abf3a421-a855-5bf2-ad2a-0ad0a88a0999",
+        "name": "Wait Answers",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          2880,
+          280
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": "={{ $('Parse robots').first().json.crawl_delay }}",
+          "unit": "seconds"
+        },
+        "notes": "Honor robots.txt Crawl-delay (3s)",
+        "notesInFlow": true,
+        "color": "#dcdde1",
+        "webhookId": "768cb57b-1d28-46ef-86aa-48be53c73ea4"
+      },
+      {
+        "id": "d2dcb1ce-f3f3-5cec-9cdc-979e60c650b4",
+        "name": "Fetch Answers sitemap",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          2640,
+          280
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse sitemap index').first().json.answers_url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Answers sitemap (answer URLs with lastmod)",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "eb72cda8-e414-5048-9671-00a8e7d6e11c",
+        "name": "Parse Answers sitemap",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2400,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst contentType = 'answer';\nconst maxItems = Number($('Config').first().json.max_per_sitemap || 50);\nconst raw = $json.data || '';\nconst entries = [];\nconst re = /<url>([\\s\\S]*?)<\\/url>/g;\nlet m;\nwhile ((m = re.exec(raw)) !== null) {\n  const block = m[1];\n  const loc = ((block.match(/<loc>\\s*([^<]+?)\\s*<\\/loc>/) || [])[1] || '').trim();\n  const lastmod = ((block.match(/<lastmod>\\s*([^<]+?)\\s*<\\/lastmod>/) || [])[1] || '').trim();\n  const img = ((block.match(/<image:loc>\\s*([^<]+?)\\s*<\\/image:loc>/) || [])[1] || '').trim();\n  if (loc) entries.push({ url: loc, lastmod: lastmod, image_url: img, content_type: contentType });\n}\nentries.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nreturn [{\n  json: {\n    items: entries.slice(0, maxItems),\n    content_type: contentType,\n    total: entries.length,\n    kept: Math.min(entries.length, maxItems),\n  },\n}];\n"
+        },
+        "notes": "Keep the answers with the freshest lastmod",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "3fc5aaa6-4b3e-5988-87ed-4f6d35a1931d",
+        "name": "Merge candidates",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          2160,
+          280
+        ],
+        "parameters": {
+          "mode": "append",
+          "numberInputs": 4
+        },
+        "notes": "One list: all 4 content types combined",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "62f4521f-c3e8-541c-8aad-f613b8f8ed87",
+        "name": "Flatten and sort",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst groups = $input.all().map(i => i.json || {});\nconst all = [];\nfor (const g of groups) {\n  const items = (g && Array.isArray(g.items)) ? g.items : [];\n  for (const it of items) all.push(it);\n}\nall.sort((a, b) => (b.lastmod || '').localeCompare(a.lastmod || '') || b.url.localeCompare(a.url));\nconst seen = new Set();\nconst deduped = all.filter(x => { if (seen.has(x.url)) return false; seen.add(x.url); return true; });\nreturn [{ json: { candidates: deduped, candidate_count: deduped.length } }];\n"
+        },
+        "notes": "Normalize, dedupe, sort by lastmod (tiebreak: URL desc)",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "023c9dbe-2a80-50db-aab9-a763e1d19ed4",
+        "name": "Load posted URLs",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          1680,
+          280
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "get",
+          "dataTableId": {
+            "mode": "name",
+            "value": "posted_urls"
+          },
+          "returnAll": true,
+          "orderBy": true,
+          "orderByColumn": "createdAt",
+          "orderByDirection": "DESC"
+        },
+        "notes": "Dedupe ledger: everything we have already touched",
+        "notesInFlow": true,
+        "color": "#a855f7",
+        "alwaysOutputData": true
+      },
+      {
+        "id": "da0e04bc-ca61-50c3-be5a-09590142674b",
+        "name": "Select candidate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1440,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst candidates = $('Flatten and sort').first().json.candidates || [];\nconst postedItems = $('Load posted URLs').all().map(i => i.json || {}).filter(p => p.url);\nconst statusByUrl = new Map(postedItems.map(p => [p.url, p.status]));\nconst blocked = new Set(['published', 'quarantined', 'pending_review']);\nconst eligible = candidates.filter(c => {\n  const st = statusByUrl.get(c.url);\n  return !st || !blocked.has(st);\n});\nconst selected = eligible[0] || null;\nreturn [{\n  json: {\n    selected: selected,\n    selected_url: selected ? selected.url : '',\n    has_candidate: !!selected,\n    eligible_count: eligible.length,\n    candidate_count: candidates.length,\n    posted_count: postedItems.length,\n  },\n}];\n"
+        },
+        "notes": "Freshest unseen URL (excludes published/quarantined/pending_review)",
+        "notesInFlow": true,
+        "color": "#f6bd16"
+      },
+      {
+        "id": "def7f53e-8ad3-52e0-a4a1-7f564b3ad40b",
+        "name": "Has candidate?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.4,
+        "position": [
+          1200,
+          280
+        ],
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c-has",
+                "leftValue": "={{ $json.has_candidate }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            }
+          }
+        },
+        "notes": "All candidates used up? -> clean exit, not an error",
+        "notesInFlow": true,
+        "color": "#ff9d4d"
+      },
+      {
+        "id": "743124bc-d2f8-5278-aa5e-d8b6797abbdd",
+        "name": "Reserve URL",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          960,
+          280
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "mode": "name",
+            "value": "posted_urls"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "url": "={{ $json.selected.url }}",
+              "content_type": "={{ $json.selected.content_type }}",
+              "status": "reserved",
+              "created_at": "={{ $now.toISO() }}",
+              "updated_at": "={{ $now.toISO() }}"
+            }
+          }
+        },
+        "notes": "Claim the URL (state: reserved) so a re-run cannot double-post",
+        "notesInFlow": true,
+        "color": "#a855f7"
+      },
+      {
+        "id": "6a3bc907-c5a0-5afa-bfa8-a52e0bb4407d",
+        "name": "Wait before page fetch",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          720,
+          280
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": "={{ $('Parse robots').first().json.crawl_delay }}",
+          "unit": "seconds"
+        },
+        "notes": "One more crawl-delay before the single item page request",
+        "notesInFlow": true,
+        "color": "#dcdde1",
+        "webhookId": "78d1d458-cec9-4eb7-9d5a-f0acf6425656"
+      },
+      {
+        "id": "9f4d984f-0a70-5fcb-8e79-63dd50da0f92",
+        "name": "Fetch item page",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          480,
+          280
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $json.url }}",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "PlacidWaySocialBot/1.0 (demo; respects robots.txt)"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        },
+        "notes": "Fetch ONLY the one selected page (1 request, not 15k)",
+        "notesInFlow": true,
+        "color": "#5ad8a6",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "d7b6455b-cf5f-5af7-903c-be0a5da0a09b",
+        "name": "Parse item page",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst html = $json.data || '';\nconst clean = s => (s || '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst title = clean(((html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1]));\nconst ogTitle = ((html.match(/<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst ogDesc = ((html.match(/<meta[^>]+property=[\"']og:description[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst metaDesc = ((html.match(/<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\nconst ogImage = ((html.match(/<meta[^>]+property=[\"']og:image[\"'][^>]+content=[\"']([^\"']*)[\"']/i) || [])[1] || '').trim();\n\nlet body = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<noscript[\\s\\S]*?<\\/noscript>/gi, ' ')\n  .replace(/<svg[\\s\\S]*?<\\/svg>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ');\nbody = body\n  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\").replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&#x27;/g, \"'\").replace(/&#x2F;/g, '/');\nbody = body.replace(/\\s+/g, ' ').trim();\n\nconst sel = $('Select candidate').first().json.selected || {};\nconst h1 = clean((html.match(/<h1[^>]*>([\\s\\S]*?)<\\/h1>/i) || [])[1]);\nlet main = body;\nif (h1) {\n  const idx = body.indexOf(h1.slice(0, 40));\n  if (idx > 0) main = body.slice(idx);\n}\nmain = main.slice(0, 6000);\n\nreturn [{\n  json: {\n    title: (ogTitle || title || sel.url || '').trim(),\n    meta_description: (ogDesc || metaDesc || '').trim(),\n    image_url: ogImage,\n    source_url: sel.url || '',\n    content_type: sel.content_type || '',\n    source_body: main,\n    source_body_length: main.length,\n    page_fetched_at: new Date().toISOString(),\n  },\n}];\n"
+        },
+        "notes": "title / og:image / cleaned main body (<=6k chars)",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "56554785-bc00-5f2b-90b0-13caebb3b090",
+        "name": "Build draft prompt",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          280
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst lines = String($json.source_body || '').split('\\n');\nconst url = String($json.source_url || '');\nconst title = String($json.title || '');\nconst summary = String($json.meta_description || '');\nconst body = String($json.source_body || '').slice(0, 4000);\n\nconst prompt = [\n  'You write Facebook posts for PlacidWay, a medical tourism marketplace.',\n  'Write ONE post about the source page below.',\n  '',\n  'RULES (hard):',\n  '- Hook: <= 12 words, informative, NO superlatives (never \"best\", \"cheapest\", \"leading\").',\n  '- value_lines: 2 to 4 short lines (max 14 words each) that state ONLY facts present in the source.',\n  '- cta: one short call to action, e.g. \"Read more:\"',\n  '- source_url: copy the source URL EXACTLY as given.',\n  '- hashtags: 3 to 5 hashtags derived from the page (mix #MedicalTourism + treatment/country).',\n  '- English, informative tone, at most 2 emojis.',\n  '- Total characters BEFORE the link must be under 500.',\n  '- Do NOT state or imply medical outcomes, guarantees, or recovery promises.',\n  '- Do NOT invent prices. If you mention a price it must be copied verbatim from the source.',\n  '',\n  'SOURCE URL: ' + url,\n  'PAGE TITLE: ' + title,\n  'PAGE SUMMARY: ' + summary,\n  'PAGE BODY:',\n  body,\n].join('\\n');\n\nreturn [{ json: { ...$json, draft_prompt: prompt } }];\n"
+        },
+        "notes": "Prompt template with the fetched source injected",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      },
+      {
+        "id": "24be1133-9f9c-5c47-a717-7bebc9e5c04a",
+        "name": "Draft post",
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.9,
+        "position": [
+          0,
+          560
+        ],
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.draft_prompt }}",
+          "hasOutputParser": true
+        },
+        "notes": "LLM draft: hook + value lines + CTA + hashtags (structured JSON)",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      },
+      {
+        "id": "4111c5f3-3105-5cea-916e-1152acff76f8",
+        "name": "Merge draft + source",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          240,
+          560
+        ],
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "joinMode": "keepMatches",
+          "outputDataFrom": "both",
+          "numberInputs": 2
+        },
+        "notes": "Re-attach the source fields the LLM node drops",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "e0e6491f-fd55-545b-915a-74a5383e183c",
+        "name": "Compose post",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          560
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst o = $json.output || {};\nconst hook = (o.hook || '').trim();\nconst lines = Array.isArray(o.value_lines) ? o.value_lines.map(s => String(s).trim()).filter(Boolean) : [];\nconst cta = (o.cta || '').trim();\nconst hashtags = Array.isArray(o.hashtags) ? o.hashtags.map(s => String(s).trim()).filter(Boolean) : [];\nconst sourceUrl = (o.source_url || $json.source_url || '').trim();\n\nconst parts = [];\nif (hook) parts.push(hook);\nfor (const l of lines) parts.push('- ' + l);\nif (cta) parts.push(cta);\nif (sourceUrl) parts.push(sourceUrl);\nif (hashtags.length) parts.push(hashtags.join(' '));\nconst postText = parts.join('\\n');\n\nreturn [{\n  json: {\n    ...$json,\n    post_text: postText,\n    hashtags: hashtags,\n    source_url: sourceUrl,\n    pre_link_length: postText.split(/https?:\\/\\//)[0].length,\n  },\n}];\n"
+        },
+        "notes": "Flatten the LLM's {output:{...}} into post_text + hashtags",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "55ff44e2-aeb2-5944-b994-838d8499ef29",
+        "name": "Rule guardrail",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          720,
+          560
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst post = ($json.post_text || '').trim();\nconst sourceBody = $json.source_body || '';\nconst sourceUrl = $json.source_url || '';\nconst hashtags = Array.isArray($json.hashtags) ? $json.hashtags : [];\nconst errors = [];\n\n// 1. structure\nconst lines = post.split('\\n').map(l => l.trim()).filter(Boolean);\nif (lines.length < 3) errors.push('post has fewer than 3 lines (hook/value/cta/link)');\nif (hashtags.length < 3) errors.push('too few hashtags: ' + hashtags.length + ' (min 3)');\nif (hashtags.length > 5) errors.push('too many hashtags: ' + hashtags.length + ' (max 5)');\n\n// 2. length < 500 before the link\nconst preLink = post.split(/https?:\\/\\//)[0].length;\nif (preLink > 500) errors.push('pre-link length ' + preLink + ' > 500');\n\n// 3. link check\nconst urlsInPost = post.match(/https?:\\/\\/[^\\s]+/g) || [];\nif (!urlsInPost.length) errors.push('no source link in post');\nfor (const u of urlsInPost) {\n  const normalized = u.replace(/[).,]+$/, '');\n  if (normalized !== sourceUrl) errors.push('link mismatch: ' + normalized + ' != ' + sourceUrl);\n}\n\n// 4. blacklist\nconst blacklist = [\n  'guarantee', 'guaranteed', 'cure ', 'cures ', '100%', 'best results', 'best choice',\n  'risk-free', 'risk free', 'permanent result', 'miracle', 'no side effects',\n  'fully recovered', 'will heal', 'certainly', 'clinically proven', 'painless',\n  'zero pain', 'instant result', 'first in the world', 'number one', 'no. 1',\n];\nconst lower = post.toLowerCase();\nfor (const w of blacklist) {\n  if (lower.includes(w)) errors.push('blacklisted phrase: \"' + w.trim() + '\"');\n}\n\n// 5. superlatives in hook\nconst hookLine = lines[0] || '';\nconst superlatives = ['best', 'cheapest', 'lowest cost', 'top-rated', 'world class', 'world-class', 'leading', 'premier'];\nfor (const w of superlatives) {\n  if (hookLine.toLowerCase().includes(w)) errors.push('superlative in hook: \"' + w + '\"');\n}\n\n// 6. price check: every $amount in the post must exist verbatim in the source body\nconst priceRe = /\\$\\s?[\\d,]+(?:\\.\\d+)?/g;\nconst postPrices = post.match(priceRe) || [];\nfor (const p of postPrices) {\n  if (!sourceBody.includes(p)) errors.push('price not found verbatim in source: ' + p);\n}\n\n// 7. emoji budget (<= 2)\nconst emojis = post.match(/[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2190}-\\u{21FF}\\u{2B00}-\\u{2BFF}]/gu) || [];\nif (emojis.length > 2) errors.push('too many emojis: ' + emojis.length + ' (max 2)');\n\n// 8. marketing copy copied from source (og:description hint) is allowed but flagged\nconst marketingFlagged = sourceBody.toLowerCase().includes('save 40') || sourceBody.toLowerCase().includes('save 50');\n\nreturn [{\n  json: {\n    ...$json,\n    guardrail: {\n      passed: errors.length === 0,\n      errors: errors,\n      errors_count: errors.length,\n      pre_link_length: preLink,\n      hashtags_count: hashtags.length,\n      prices_found: postPrices,\n      emojis_count: emojis.length,\n      marketing_copy_flagged: marketingFlagged,\n    },\n  },\n}];\n"
+        },
+        "notes": "Deterministic checks: length, link, blacklist, prices, hashtags, emoji",
+        "notesInFlow": true,
+        "color": "#ff9d4d"
+      },
+      {
+        "id": "4f62dcfe-4eaf-5cff-bbba-61a9b708ff63",
+        "name": "Rule pass?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.4,
+        "position": [
+          960,
+          560
+        ],
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c-rule",
+                "leftValue": "={{ $json.guardrail.passed }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            }
+          }
+        },
+        "notes": "Rule-based gate (cheap, free, instant)",
+        "notesInFlow": true,
+        "color": "#ff9d4d"
+      },
+      {
+        "id": "58f1943d-6c61-5345-a5dc-29b17eef9689",
+        "name": "Build review prompt",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1200,
+          560
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst post = String($json.post_text || '');\nconst body = String($json.source_body || '').slice(0, 6000);\n\nconst prompt = [\n  'You are a compliance reviewer for medical tourism social media.',\n  'Does the post below make medical claims, promise outcomes, invent prices,',\n  'or state facts that are NOT supported by the source page?',\n  '',\n  'Answer FAIL if ANY of these are true:',\n  '- It claims a treatment is guaranteed, risk-free, painless, permanent, or a cure.',\n  '- It promises an outcome (recovery speed, success rate, \"patients feel better\").',\n  '- It contains a price that does not appear verbatim in the source body.',\n  '- It states facts (statistics, accreditations, doctor credentials) absent from the source.',\n  '- It uses superlatives in the hook (\"best\", \"cheapest\", \"world-class\").',\n  'Otherwise answer PASS.',\n  '',\n  'POST:',\n  post,\n  '',\n  'SOURCE BODY:',\n  body,\n].join('\\n');\n\nreturn [{ json: { ...$json, review_prompt: prompt } }];\n"
+        },
+        "notes": "Independent reviewer prompt (post + source body)",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      },
+      {
+        "id": "bf5e87ad-123f-523c-9d61-bb28d42a707e",
+        "name": "Compliance review",
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.9,
+        "position": [
+          1440,
+          560
+        ],
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.review_prompt }}",
+          "hasOutputParser": true
+        },
+        "notes": "Independent LLM pass: medical claims / invented prices / unsupported facts",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      },
+      {
+        "id": "3d837b58-1554-5e1a-8d7f-dda903213034",
+        "name": "Merge review + draft",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          1680,
+          560
+        ],
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "joinMode": "keepMatches",
+          "outputDataFrom": "both",
+          "numberInputs": 2
+        },
+        "notes": "Combine verdict with the draft payload",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "3880e40a-ad08-5a1a-bb2b-a8cc74805651",
+        "name": "Normalize review verdict",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          560
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst o = $json.output || {};\nconst decision = String(o.decision || '').toUpperCase();\nconst reasons = Array.isArray(o.reasons) ? o.reasons : [];\nreturn [{\n  json: {\n    ...$json,\n    review_passed: decision === 'PASS',\n    review_decision: decision,\n    review_reasons: reasons,\n  },\n}];\n"
+        },
+        "notes": "Normalize the reviewer verdict to a boolean",
+        "notesInFlow": true,
+        "color": "#ff9d4d"
+      },
+      {
+        "id": "ef375679-0d1c-5571-8d9e-b534e452142f",
+        "name": "Review pass?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.4,
+        "position": [
+          2160,
+          560
+        ],
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c-review",
+                "leftValue": "={{ $json.review_passed }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            }
+          }
+        },
+        "notes": "LLM gate: any FAIL -> quarantine",
+        "notesInFlow": true,
+        "color": "#ff9d4d"
+      },
+      {
+        "id": "cfe6c356-327f-5b9f-916c-ea1e0bccc602",
+        "name": "Publish (simulated)",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2400,
+          560
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst autoPublish = cfg.auto_publish === true;\nconst publisherMode = cfg.publisher_mode || 'simulate';\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst postId = 'sim_' + now.getTime();\n\nlet status = 'pending_review';\nif (publisherMode === 'simulate') {\n  status = autoPublish ? 'published' : 'pending_review';\n} else {\n  status = autoPublish ? 'published' : 'pending_review';\n}\n\nreturn [{\n  json: {\n    ...$json,\n    run_id: runId,\n    post_id: postId,\n    status: status,\n    publisher_mode: publisherMode,\n    auto_publish: autoPublish,\n    published_at: now.toISOString(),\n  },\n}];\n"
+        },
+        "notes": "simulate -> published_posts; AUTO_PUBLISH=false -> pending_review",
+        "notesInFlow": true,
+        "color": "#5ad8a6"
+      },
+      {
+        "id": "e72e47b4-90f8-5456-ab37-92b76dfc577e",
+        "name": "Write published_posts",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          2640,
+          560
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "mode": "name",
+            "value": "published_posts"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "post_id": "={{ $json.post_id }}",
+              "url": "={{ $json.source_url }}",
+              "title": "={{ $json.title }}",
+              "content_type": "={{ $json.content_type }}",
+              "post_text": "={{ $json.post_text }}",
+              "image_url": "={{ $json.image_url }}",
+              "status": "={{ $json.status }}",
+              "guardrail_result": "PASS",
+              "publisher_mode": "={{ $json.publisher_mode }}",
+              "created_at": "={{ $json.published_at }}"
+            }
+          }
+        },
+        "notes": "The 'published post' record (simulated publisher)",
+        "notesInFlow": true,
+        "color": "#a855f7"
+      },
+      {
+        "id": "fe4405f8-9f2a-5ed5-bae9-74c07cd0c7fe",
+        "name": "Mark posted",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          2880,
+          560
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "update",
+          "dataTableId": {
+            "mode": "name",
+            "value": "posted_urls"
+          },
+          "matchType": "allConditions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "url",
+                "condition": "eq",
+                "keyValue": "={{ $json.url }}"
+              }
+            ]
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "status": "={{ $json.status }}",
+              "updated_at": "={{ $now.toISO() }}"
+            }
+          }
+        },
+        "notes": "Flip reserved -> published/pending_review",
+        "notesInFlow": true,
+        "color": "#a855f7"
+      },
+      {
+        "id": "c14ce488-54dc-593f-9aea-5dd35ce97833",
+        "name": "Log run",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          3120,
+          560
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "mode": "name",
+            "value": "run_logs"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "run_id": "={{ $('Publish (simulated)').first().json.run_id }}",
+              "timestamp": "={{ $('Publish (simulated)').first().json.published_at }}",
+              "selected_url": "={{ $('Publish (simulated)').first().json.source_url }}",
+              "content_type": "={{ $('Publish (simulated)').first().json.content_type }}",
+              "post_text": "={{ $('Publish (simulated)').first().json.post_text }}",
+              "guardrail_result": "PASS",
+              "publisher_mode": "={{ $('Publish (simulated)').first().json.publisher_mode }}",
+              "post_id": "={{ $('Publish (simulated)').first().json.post_id }}",
+              "status": "={{ $('Publish (simulated)').first().json.status }}",
+              "error": ""
+            }
+          }
+        },
+        "notes": "Append-only run log (audit trail)",
+        "notesInFlow": true,
+        "color": "#a855f7"
+      },
+      {
+        "id": "c1337a22-c024-5c54-af71-3ce66b9b1b01",
+        "name": "No new content",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          1120
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst count = $('Select candidate').first().json.candidate_count || 0;\nreturn [{\n  json: {\n    run_id: runId,\n    timestamp: now.toISOString(),\n    status: 'no_new_content',\n    selected_url: '',\n    content_type: '',\n    post_text: '',\n    guardrail_result: 'n/a',\n    publisher_mode: 'n/a',\n    post_id: '',\n    error: 'No unseen candidates left (candidates=' + count + ').',\n    candidates_exhausted: true,\n  },\n}];\n"
+        },
+        "notes": "Clean exit: alert + log, NOT a workflow error",
+        "notesInFlow": true,
+        "color": "#dcdde1"
+      },
+      {
+        "id": "5ddacef0-29f6-58cb-a33b-6e77c96f4253",
+        "name": "Log no content",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          1120
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "mode": "name",
+            "value": "run_logs"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "run_id": "={{ $json.run_id }}",
+              "timestamp": "={{ $json.timestamp }}",
+              "selected_url": "",
+              "content_type": "",
+              "post_text": "",
+              "guardrail_result": "n/a",
+              "publisher_mode": "n/a",
+              "post_id": "",
+              "status": "no_new_content",
+              "error": "={{ $json.error }}"
+            }
+          }
+        },
+        "notes": "Record the clean exit",
+        "notesInFlow": true,
+        "color": "#a855f7"
+      },
+      {
+        "id": "250d433f-8010-5887-a7b0-3449846a24b4",
+        "name": "Alert no content",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          1120
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst channel = cfg.alert_channel || '';\nconst text = '[PlacidWay Bot] No new content to post. All candidates are already published/quarantined.';\nreturn [{ json: { channel: channel, message: text, text: text, severity: 'info', kind: 'no_new_content' } }];\n"
+        },
+        "notes": "Build the alert payload",
+        "notesInFlow": true,
+        "color": "#ff4d4f"
+      },
+      {
+        "id": "7f90eddf-f8c6-5a6f-8406-ac2b21839bd6",
+        "name": "Send no-content alert",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          720,
+          1120
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.channel }}",
+          "sendBody": true,
+          "contentType": "raw",
+          "body": "={{ JSON.stringify({text: $json.text, content: $json.text, message: $json.message}) }}",
+          "options": {
+            "timeout": 10000,
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            }
+          }
+        },
+        "notes": "ALERT_CHANNEL webhook (Telegram/Discord/generic)",
+        "notesInFlow": true,
+        "color": "#ff4d4f",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "b50ba2e2-5aaa-5116-a6d3-267cf1217c9a",
+        "name": "Quarantine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          1400
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst now = new Date();\nconst runId = 'run_' + now.getTime();\nconst g = $json.guardrail || {};\nconst r = $json.review_reasons || [];\nconst reasons = (g.errors && g.errors.length ? g.errors : r);\nconst sel = $('Select candidate').first().json.selected || {};\nreturn [{\n  json: {\n    run_id: runId,\n    timestamp: now.toISOString(),\n    status: 'quarantined',\n    selected_url: sel.url || '',\n    content_type: sel.content_type || '',\n    post_text: $json.post_text || '',\n    guardrail_result: 'FAIL',\n    publisher_mode: 'n/a',\n    post_id: '',\n    error: reasons.join(' | '),\n    quarantine_reason: reasons,\n  },\n}];\n"
+        },
+        "notes": "Mark the item quarantined; it will never be selected again",
+        "notesInFlow": true,
+        "color": "#ff4d4f"
+      },
+      {
+        "id": "09445508-20b0-5357-8146-71e9b5cb4a55",
+        "name": "Mark quarantined",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          1400
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "update",
+          "dataTableId": {
+            "mode": "name",
+            "value": "posted_urls"
+          },
+          "matchType": "allConditions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "url",
+                "condition": "eq",
+                "keyValue": "={{ $json.selected_url }}"
+              }
+            ]
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "status": "quarantined",
+              "updated_at": "={{ $now.toISO() }}"
+            }
+          }
+        },
+        "notes": "reserved -> quarantined",
+        "notesInFlow": true,
+        "color": "#ff4d4f"
+      },
+      {
+        "id": "7c9f8a71-a32d-5b8c-804c-42488149db28",
+        "name": "Log quarantine",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          480,
+          1400
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "mode": "name",
+            "value": "run_logs"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "run_id": "={{ $('Quarantine').first().json.run_id }}",
+              "timestamp": "={{ $('Quarantine').first().json.timestamp }}",
+              "selected_url": "={{ $('Quarantine').first().json.selected_url }}",
+              "content_type": "={{ $('Quarantine').first().json.content_type }}",
+              "post_text": "={{ $('Quarantine').first().json.post_text }}",
+              "guardrail_result": "FAIL",
+              "publisher_mode": "n/a",
+              "post_id": "",
+              "status": "quarantined",
+              "error": "={{ $('Quarantine').first().json.error }}"
+            }
+          }
+        },
+        "notes": "Record the quarantine + reasons",
+        "notesInFlow": true,
+        "color": "#ff4d4f"
+      },
+      {
+        "id": "b10418ff-4dfb-55c3-84e1-6ca51e15b602",
+        "name": "Alert quarantine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          720,
+          1400
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "language": "javaScript",
+          "jsCode": "\nconst cfg = $('Config').first().json || {};\nconst channel = cfg.alert_channel || '';\nconst q = $('Quarantine').first().json || {};\nconst url = q.selected_url || '';\nconst reasons = Array.isArray(q.quarantine_reason) ? q.quarantine_reason : [q.quarantine_reason];\nconst text = '[PlacidWay Bot] Post quarantined for: ' + url + '\\nReasons: ' + reasons.join('; ');\nreturn [{ json: { channel: channel, message: text, text: text, severity: 'warning', kind: 'quarantine' } }];\n"
+        },
+        "notes": "Build the quarantine alert",
+        "notesInFlow": true,
+        "color": "#ff4d4f"
+      },
+      {
+        "id": "9172c72c-9bc7-5b00-869d-fd6da1d906a0",
+        "name": "Send quarantine alert",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.5,
+        "position": [
+          960,
+          1400
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.channel }}",
+          "sendBody": true,
+          "contentType": "raw",
+          "body": "={{ JSON.stringify({text: $json.text, content: $json.text, message: $json.message}) }}",
+          "options": {
+            "timeout": 10000,
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            }
+          }
+        },
+        "notes": "Human-in-the-loop: a FAIL must never be silent",
+        "notesInFlow": true,
+        "color": "#ff4d4f",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "2a1381f7-d671-5e7d-82f2-4c20a5abc170",
+        "name": "Draft model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          320
+        ],
+        "parameters": {
+          "model": {
+            "mode": "id",
+            "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}"
+          },
+          "responsesApiEnabled": false,
+          "options": {
+            "temperature": 0.4,
+            "maxTokens": 800,
+            "topP": 1
+          }
+        },
+        "notes": "GPT-4o-mini via LLM_MODEL env var",
+        "notesInFlow": true,
+        "color": "#e8684a",
+        "credentials": {
+          "openAiApi": {
+            "id": "sGTvj15nf94koXYa",
+            "name": "OpenAI API"
+          }
+        }
+      },
+      {
+        "id": "e06fc9f2-b449-5cad-87ce-c925024f8941",
+        "name": "Draft output parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.3,
+        "position": [
+          240,
+          320
+        ],
+        "parameters": {
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"hook\": {\n      \"type\": \"string\"\n    },\n    \"value_lines\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"cta\": {\n      \"type\": \"string\"\n    },\n    \"hashtags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"source_url\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"hook\",\n    \"value_lines\",\n    \"cta\",\n    \"hashtags\",\n    \"source_url\"\n  ]\n}",
+          "autoFix": false
+        },
+        "notes": "Force JSON: hook, value_lines, cta, hashtags, source_url",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      },
+      {
+        "id": "7477807d-dabb-5aa4-bae5-2170496180f3",
+        "name": "Review model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          1440,
+          320
+        ],
+        "parameters": {
+          "model": {
+            "mode": "id",
+            "value": "={{ $env.LLM_MODEL || 'gpt-4o-mini' }}"
+          },
+          "responsesApiEnabled": false,
+          "options": {
+            "temperature": 0.4,
+            "maxTokens": 800,
+            "topP": 1
+          }
+        },
+        "notes": "Same model, independent prompt",
+        "notesInFlow": true,
+        "color": "#e8684a",
+        "credentials": {
+          "openAiApi": {
+            "id": "sGTvj15nf94koXYa",
+            "name": "OpenAI API"
+          }
+        }
+      },
+      {
+        "id": "41ebd09f-5b1a-5ccd-a462-21d7aecfc96d",
+        "name": "Review output parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.3,
+        "position": [
+          1680,
+          320
+        ],
+        "parameters": {
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"decision\": {\n      \"type\": \"string\"\n    },\n    \"reasons\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"medical_claims\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"invented_prices\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"unsupported_facts\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"decision\",\n    \"reasons\"\n  ]\n}",
+          "autoFix": false
+        },
+        "notes": "Force JSON: decision PASS/FAIL + reasons",
+        "notesInFlow": true,
+        "color": "#e8684a"
+      }
+    ],
+    "connections": {
+      "Schedule": {
+        "main": [
+          [
+            {
+              "node": "Config",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Manual Run": {
+        "main": [
+          [
+            {
+              "node": "Config",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Config": {
+        "main": [
+          [
+            {
+              "node": "Fetch robots.txt",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch robots.txt": {
+        "main": [
+          [
+            {
+              "node": "Parse robots",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse robots": {
+        "main": [
+          [
+            {
+              "node": "Fetch sitemap index",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch sitemap index": {
+        "main": [
+          [
+            {
+              "node": "Parse sitemap index",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse sitemap index": {
+        "main": [
+          [
+            {
+              "node": "Wait Articles",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait Articles": {
+        "main": [
+          [
+            {
+              "node": "Fetch Articles sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Articles sitemap": {
+        "main": [
+          [
+            {
+              "node": "Parse Articles sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Articles sitemap": {
+        "main": [
+          [
+            {
+              "node": "Wait Packages",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge candidates",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait Packages": {
+        "main": [
+          [
+            {
+              "node": "Fetch Packages sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Packages sitemap": {
+        "main": [
+          [
+            {
+              "node": "Parse Packages sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Packages sitemap": {
+        "main": [
+          [
+            {
+              "node": "Wait Profiles",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge candidates",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Wait Profiles": {
+        "main": [
+          [
+            {
+              "node": "Fetch Profiles sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Profiles sitemap": {
+        "main": [
+          [
+            {
+              "node": "Parse Profiles sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Profiles sitemap": {
+        "main": [
+          [
+            {
+              "node": "Wait Answers",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge candidates",
+              "type": "main",
+              "index": 2
+            }
+          ]
+        ]
+      },
+      "Wait Answers": {
+        "main": [
+          [
+            {
+              "node": "Fetch Answers sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Answers sitemap": {
+        "main": [
+          [
+            {
+              "node": "Parse Answers sitemap",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Answers sitemap": {
+        "main": [
+          [
+            {
+              "node": "Merge candidates",
+              "type": "main",
+              "index": 3
+            }
+          ]
+        ]
+      },
+      "Merge candidates": {
+        "main": [
+          [
+            {
+              "node": "Flatten and sort",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Flatten and sort": {
+        "main": [
+          [
+            {
+              "node": "Load posted URLs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Load posted URLs": {
+        "main": [
+          [
+            {
+              "node": "Select candidate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Select candidate": {
+        "main": [
+          [
+            {
+              "node": "Has candidate?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has candidate?": {
+        "main": [
+          [
+            {
+              "node": "Reserve URL",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No new content",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reserve URL": {
+        "main": [
+          [
+            {
+              "node": "Wait before page fetch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait before page fetch": {
+        "main": [
+          [
+            {
+              "node": "Fetch item page",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch item page": {
+        "main": [
+          [
+            {
+              "node": "Parse item page",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse item page": {
+        "main": [
+          [
+            {
+              "node": "Build draft prompt",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge draft + source",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Build draft prompt": {
+        "main": [
+          [
+            {
+              "node": "Draft post",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Draft post": {
+        "main": [
+          [
+            {
+              "node": "Merge draft + source",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge draft + source": {
+        "main": [
+          [
+            {
+              "node": "Compose post",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compose post": {
+        "main": [
+          [
+            {
+              "node": "Rule guardrail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rule guardrail": {
+        "main": [
+          [
+            {
+              "node": "Rule pass?",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge review + draft",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Rule pass?": {
+        "main": [
+          [
+            {
+              "node": "Build review prompt",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Quarantine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build review prompt": {
+        "main": [
+          [
+            {
+              "node": "Compliance review",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compliance review": {
+        "main": [
+          [
+            {
+              "node": "Merge review + draft",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge review + draft": {
+        "main": [
+          [
+            {
+              "node": "Normalize review verdict",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalize review verdict": {
+        "main": [
+          [
+            {
+              "node": "Review pass?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Review pass?": {
+        "main": [
+          [
+            {
+              "node": "Publish (simulated)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Quarantine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Publish (simulated)": {
+        "main": [
+          [
+            {
+              "node": "Write published_posts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write published_posts": {
+        "main": [
+          [
+            {
+              "node": "Mark posted",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark posted": {
+        "main": [
+          [
+            {
+              "node": "Log run",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "No new content": {
+        "main": [
+          [
+            {
+              "node": "Log no content",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Log no content": {
+        "main": [
+          [
+            {
+              "node": "Alert no content",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Alert no content": {
+        "main": [
+          [
+            {
+              "node": "Send no-content alert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Quarantine": {
+        "main": [
+          [
+            {
+              "node": "Mark quarantined",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark quarantined": {
+        "main": [
+          [
+            {
+              "node": "Log quarantine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Log quarantine": {
+        "main": [
+          [
+            {
+              "node": "Alert quarantine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Alert quarantine": {
+        "main": [
+          [
+            {
+              "node": "Send quarantine alert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Draft model": {
+        "main": [],
+        "ai_languageModel": [
+          [
+            {
+              "node": "Draft post",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Draft output parser": {
+        "main": [],
+        "ai_outputParser": [
+          [
+            {
+              "node": "Draft post",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Review model": {
+        "main": [],
+        "ai_languageModel": [
+          [
+            {
+              "node": "Compliance review",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Review output parser": {
+        "main": [],
+        "ai_outputParser": [
+          [
+            {
+              "node": "Compliance review",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Admin User",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-11-13T02:02:13.321Z",
+        "id": 6,
+        "workflowId": "UZv5qQMVxAe7C25s",
+        "versionId": "6e836762-681c-4e1a-a87f-30df31fc76ff",
+        "event": "activated",
+        "userId": "d77d40c8-48ac-4788-b1f1-25e386954bae"
+      }
+    ]
+  },
+  "scopes": [
+    "execution:delete",
+    "execution:list",
+    "execution:read",
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "checksum": "8e50e48839b34cab34524c4fe1404e75533895e63835df2d1cc19151f55e24a2"
+}
